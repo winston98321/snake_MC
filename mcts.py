@@ -12,6 +12,11 @@ current position and runs four phases many times:
 Food appears at random, so the tree is "open loop": nodes store statistics
 for a sequence of moves, and every iteration re-simulates that sequence from
 the root with freshly sampled food positions.
+
+Safe mode borrows the rule that makes safe A* strong: a snake whose head can
+still reach its tail can always escape by following it. With safe=True the
+agent only searches moves that keep the tail reachable (when any exist), and
+rollouts that end with the tail unreachable are penalised.
 """
 
 import math
@@ -140,7 +145,8 @@ class Node:
 
 class MCTSAgent:
     def __init__(self, iterations=300, time_limit=None, rollout_depth=30,
-                 exploration=1.0, gamma=0.97, seed=None):
+                 exploration=1.0, gamma=0.97, seed=None, safe=False):
+        self.safe = safe
         self.iterations = iterations
         self.time_limit = time_limit  # Seconds per move; stops early if reached before `iterations`.
         self.rollout_depth = rollout_depth
@@ -151,19 +157,31 @@ class MCTSAgent:
     def choose_action(self, game):
         root_state = SnakeState.from_game(game, self.rng)
         safe = [a for a in root_state.legal_actions() if root_state.is_safe(a)]
+        if self.safe:
+            # Keep only moves after which the head can still reach the tail, if there are any.
+            safe = [a for a in safe if self._tail_reachable_after(root_state, a)] or safe
         if len(safe) <= 1:
             return safe[0] if safe else root_state.direction
 
         root = Node()
         deadline = time.perf_counter() + self.time_limit if self.time_limit else None
         for _ in range(self.iterations):
-            self._iterate(root, root_state)
+            self._iterate(root, root_state, safe)
             if deadline and time.perf_counter() >= deadline:
                 break
 
         return max(root.children, key=lambda a: root.children[a].visits)
 
-    def _iterate(self, root, root_state):
+    @staticmethod
+    def _tail_reachable_after(state, action):
+        from astar import tail_reachable  # Imported here because astar.py imports this module.
+
+        nxt = state.next_head(action)
+        body = list(state.snake)
+        body = [nxt] + (body if nxt == state.food else body[:-1])
+        return tail_reachable(body, state.board_size)
+
+    def _iterate(self, root, root_state, root_actions):
         state = root_state.copy()
         node = root
         path = [root]
@@ -172,7 +190,7 @@ class MCTSAgent:
 
         # 1. Selection + 2. Expansion
         while state.alive:
-            actions = state.legal_actions()
+            actions = root_actions if node is root else state.legal_actions()
             untried = [a for a in actions if a not in node.children]
             if untried:
                 action = self.rng.choice(untried)
@@ -244,5 +262,9 @@ class MCTSAgent:
         food_r, food_c = state.food
         closeness = 1.0 - (abs(head_r - food_r) + abs(head_c - food_c)) / (2 * n)
         # Heavily penalise positions where the snake has boxed itself in.
-        trapped = -0.5 if state.reachable_area() < len(state.snake) else 0.0
+        if self.safe:
+            from astar import tail_reachable
+            trapped = 0.0 if tail_reachable(list(state.snake), n) else -0.5
+        else:
+            trapped = -0.5 if state.reachable_area() < len(state.snake) else 0.0
         return 0.3 * closeness + trapped

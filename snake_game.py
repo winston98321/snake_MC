@@ -272,9 +272,10 @@ def play_game(agent, seed, board_size=15):
 
 
 def make_agent(name, seed=None, iterations=300, time_limit=None, rollout_depth=30):
-    if name == "mcts":
+    if name in ("mcts", "mcts-safe"):
         from mcts import MCTSAgent
-        return MCTSAgent(iterations=iterations, time_limit=time_limit, rollout_depth=rollout_depth, seed=seed)
+        return MCTSAgent(iterations=iterations, time_limit=time_limit, rollout_depth=rollout_depth, seed=seed,
+                         safe=(name == "mcts-safe"))
     from astar import AStarAgent
     return AStarAgent(safe=(name == "astar-safe"))
 
@@ -295,8 +296,9 @@ if __name__ == "__main__":
     import time
 
     parser = argparse.ArgumentParser(description="Snake game controlled by Monte Carlo Tree Search or A*.")
-    parser.add_argument("--agent", choices=["mcts", "astar", "astar-safe"], default="mcts",
-                        help="mcts: Monte Carlo Tree Search, astar: plain A*, astar-safe: A* that checks it can reach its tail.")
+    parser.add_argument("--agent", choices=["mcts", "mcts-safe", "astar", "astar-safe"], default="mcts",
+                        help="mcts: Monte Carlo Tree Search, astar: plain A*, "
+                             "*-safe: only make moves after which the snake can still reach its tail.")
     parser.add_argument("--iterations", type=int, default=300, help="MCTS iterations per move.")
     parser.add_argument("--time-limit", type=float, default=0.2, help="Max thinking time per move in seconds (0 = no limit).")
     parser.add_argument("--rollout-depth", type=int, default=30, help="Steps simulated in each rollout.")

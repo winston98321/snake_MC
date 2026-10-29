@@ -15,7 +15,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 from snake_game import make_agent, play_game
 
-AGENT_LABELS = {"mcts": "MCTS", "astar": "A* (plain)", "astar-safe": "A* (safe)"}
+AGENT_LABELS = {"mcts": "MCTS", "mcts-safe": "MCTS (safe)", "astar": "A* (plain)", "astar-safe": "A* (safe)"}
 
 
 def run_one(job):
