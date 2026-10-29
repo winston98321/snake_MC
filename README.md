@@ -5,7 +5,7 @@
 ## Acknowledgements
 This project uses the `snake-ai` environment for the snake game from [linyiLYi](https://github.com/linyiLYi/snake-ai). A big thank you to the original author for providing such a great resource.
 
-Author : Po Kai Su,Wei Yi Lin,[Jui Yang Tsai](https://github.com/abde2939)
+Author : Po Kai Su
 
 ### Introduction
 The snake is controlled by a Monte Carlo Tree Search (MCTS) agent. Before every move, the agent looks ahead by simulating many possible futures and picks the move that leads to the best outcomes on average.
