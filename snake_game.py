@@ -29,7 +29,7 @@ class SnakeGame:
         self.silent_mode = silent_mode
         if not silent_mode:
             pygame.init()
-            pygame.display.set_caption("MCTS Snake Game")
+            pygame.display.set_caption("Snake Game")
             self.screen = pygame.display.set_mode((self.display_width, self.display_height))
             self.font = pygame.font.Font(None, 36)
 
@@ -156,7 +156,7 @@ class SnakeGame:
         self.screen.blit(score_text, (self.border_size, self.height + 2 * self.border_size))
 
     def draw_welcome_screen(self):
-        title_text = self.font.render("MCTS SNAKE GAME", True, (255, 0, 0))
+        title_text = self.font.render("AI SNAKE GAME", True, (255, 0, 0))
         start_button_text = "START THE GAME"
 
         self.screen.fill((0, 0, 0))
@@ -247,27 +247,46 @@ class SnakeGame:
         self.screen.blit(head, head.get_rect(center=(center_x + offset_x, center_y + offset_y)))
 
 
-def run_headless(agent, games, seed, board_size):
-    """Let the MCTS agent play without a window and print the scores."""
+def play_game(agent, seed, board_size=15):
+    """Let an agent play one game without a window. Returns score, steps, result and thinking time."""
     import time
 
+    game = SnakeGame(seed=seed, board_size=board_size, silent_mode=True)
+    steps, steps_since_food = 0, 0
+    think_time = 0.0
+    while True:
+        start = time.perf_counter()
+        action = agent.choose_action(game)
+        think_time += time.perf_counter() - start
+
+        done, info = game.step(action)
+        steps += 1
+        steps_since_food = 0 if info["food_obtained"] else steps_since_food + 1
+        if done:
+            result = "won" if len(game.snake) >= game.grid_size else "died"
+            break
+        if steps_since_food > 4 * game.grid_size: # Stop if the snake just loops forever.
+            result = "looping"
+            break
+    return {"score": game.score, "steps": steps, "result": result, "ms_per_move": 1000 * think_time / steps}
+
+
+def make_agent(name, seed=None, iterations=300, time_limit=None, rollout_depth=30):
+    if name == "mcts":
+        from mcts import MCTSAgent
+        return MCTSAgent(iterations=iterations, time_limit=time_limit, rollout_depth=rollout_depth, seed=seed)
+    from astar import AStarAgent
+    return AStarAgent(safe=(name == "astar-safe"))
+
+
+def run_headless(agent, games, seed, board_size):
+    """Play several games without a window and print the scores."""
     scores = []
     for g in range(games):
-        game = SnakeGame(seed=seed + g, board_size=board_size, silent_mode=True)
-        steps, steps_since_food = 0, 0
-        start = time.time()
-        while True:
-            done, info = game.step(agent.choose_action(game))
-            steps += 1
-            steps_since_food = 0 if info["food_obtained"] else steps_since_food + 1
-            if done:
-                result = "won" if len(game.snake) >= game.grid_size else "died"
-                break
-            if steps_since_food > 4 * game.grid_size: # Stop if the snake just loops forever.
-                result = "looping"
-                break
-        scores.append(game.score)
-        print(f"Game {g + 1}: score={game.score} steps={steps} ({result}, {time.time() - start:.1f}s)")
+        stats = play_game(agent, seed + g, board_size)
+        scores.append(stats["score"])
+        print(f"Game {g + 1}: score={stats['score']} steps={stats['steps']} "
+              f"({stats['result']}, {stats['ms_per_move']:.1f} ms/move)")
     print(f"Average score over {games} games: {sum(scores) / len(scores):.1f}")
 
 
@@ -275,9 +294,9 @@ if __name__ == "__main__":
     import argparse
     import time
 
-    from mcts import MCTSAgent
-
-    parser = argparse.ArgumentParser(description="Snake game controlled by Monte Carlo Tree Search.")
+    parser = argparse.ArgumentParser(description="Snake game controlled by Monte Carlo Tree Search or A*.")
+    parser.add_argument("--agent", choices=["mcts", "astar", "astar-safe"], default="mcts",
+                        help="mcts: Monte Carlo Tree Search, astar: plain A*, astar-safe: A* that checks it can reach its tail.")
     parser.add_argument("--iterations", type=int, default=300, help="MCTS iterations per move.")
     parser.add_argument("--time-limit", type=float, default=0.2, help="Max thinking time per move in seconds (0 = no limit).")
     parser.add_argument("--rollout-depth", type=int, default=30, help="Steps simulated in each rollout.")
@@ -289,8 +308,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     seed = args.seed if args.seed is not None else random.randint(0, int(1e9))
-    agent = MCTSAgent(iterations=args.iterations, time_limit=args.time_limit or None,
-                      rollout_depth=args.rollout_depth, seed=seed)
+    agent = make_agent(args.agent, seed=seed, iterations=args.iterations,
+                       time_limit=args.time_limit or None, rollout_depth=args.rollout_depth)
 
     if args.headless:
         run_headless(agent, args.games, seed, args.board_size)
@@ -335,7 +354,7 @@ if __name__ == "__main__":
 
         if game_state == "running":
             if time.time() - start_time >= args.interval:
-                action = agent.choose_action(game) # MCTS picks the next move.
+                action = agent.choose_action(game) # The agent (MCTS or A*) picks the next move.
                 done, _ = game.step(action)
                 game.render()
                 start_time = time.time()
