@@ -1,6 +1,6 @@
 # README
 
-## Playing Snake with Monte Carlo Tree Search (蒙地卡羅樹搜尋)
+## Playing Snake with Monte Carlo Tree Search
 
 ## Acknowledgements
 This project uses the `snake-ai` environment for the snake game from [linyiLYi](https://github.com/linyiLYi/snake-ai). A big thank you to the original author for providing such a great resource.
